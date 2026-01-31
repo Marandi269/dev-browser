@@ -7,6 +7,55 @@ description: Browser automation with persistent page state. Use when users ask t
 
 Browser automation that maintains page state across script executions. Write small, focused scripts to accomplish tasks incrementally. Once you've proven out part of a workflow and there is repeated work to be done, you can write a script to do the repeated work in a single execution.
 
+## Optimization for LLM
+
+Minimize token usage and latency by choosing the right approach.
+
+### Reading Page Content (Priority Order)
+
+1. **DOM / JS** - Fastest, lowest tokens. Use `page.evaluate()` or `getAISnapshot()`
+2. **Screenshots** - Only when visual judgment is needed (captchas, charts, layout verification)
+
+```typescript
+// Prefer: structured data extraction
+const data = await page.evaluate(() => ({
+  title: document.title,
+  links: [...document.querySelectorAll("a")].map(a => ({ text: a.textContent, href: a.href })),
+  formValues: Object.fromEntries(new FormData(document.querySelector("form")))
+}));
+
+// Only when necessary: screenshot
+await page.screenshot({ path: "tmp/verify.jpg", type: "jpeg", quality: 50 });
+```
+
+### Performing Actions (Priority Order)
+
+1. **JS direct manipulation** - Fastest, most reliable
+2. **Simulated clicks/input** - Only when event listeners must fire (React/Vue onChange, etc.)
+
+```typescript
+// Prefer: direct JS (works for simple forms, navigation)
+await page.evaluate(() => {
+  document.querySelector("input[name='search']").value = "query";
+  document.querySelector("form").submit();
+});
+
+// Only when necessary: simulate user (React/Vue bindings, hover effects, anti-bot detection)
+await page.fill("input[name='search']", "query");
+await page.click("button[type='submit']");
+```
+
+### Screenshot Optimization
+
+```typescript
+// Use small viewport + JPEG
+const page = await client.page("task", { viewport: { width: 1024, height: 768 } });
+await page.screenshot({ path: "tmp/shot.jpg", type: "jpeg", quality: 50 });
+
+// Or clip to capture only relevant regions
+await page.screenshot({ path: "tmp/form.jpg", type: "jpeg", quality: 50, clip: { x: 0, y: 0, width: 800, height: 400 } });
+```
+
 ## Choosing Your Approach
 
 - **Local/source-available sites**: Read the source code first to write selectors directly
